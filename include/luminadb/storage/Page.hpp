@@ -1,6 +1,9 @@
 #ifndef LUMINADB_PAGE_HPP
 #define LUMINADB_PAGE_HPP
 
+#include <cstdint>
+#include <cstring>
+
 namespace LuminaDB {
 // Industry standard page size (4KB)
 inline constexpr size_t PAGE_SIZE = 4096;
@@ -33,7 +36,8 @@ class Page {
 
   public:
 	//   Constructor
-	Page(uint32_t id, uint32_t type);
+	Page();
+	void init(uint32_t id, uint32_t type);
 
 	PageHeader *getHeader();
 

@@ -1,11 +1,10 @@
 #include "luminadb/storage/Page.hpp"
 
-#include <cstdint>
-#include <cstring>
+namespace LuminaDB {
 
-using namespace LuminaDB;
+Page::Page() {}
 
-Page::Page(uint32_t id, uint32_t type) {
+void Page::init(uint32_t id, uint32_t type) {
 	std::memset(data, 0, PAGE_SIZE);
 	auto *header = getHeader();
 	header->page_id = id;
@@ -56,3 +55,4 @@ const char *Page::getRecord(uint16_t slot_idx, uint16_t &out_size) {
 }
 
 const char *Page::getRawData() const { return data; }
+} // namespace LuminaDB

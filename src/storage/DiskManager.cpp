@@ -1,7 +1,7 @@
 #include "luminadb/storage/DiskManager.hpp"
 #include "luminadb/storage/Page.hpp"
 
-using namespace LuminaDB;
+namespace LuminaDB {
 
 DiskManager::DiskManager(const std::string &db_file) : file_name(db_file) {
 	// Start for reading, writing, and binary.
@@ -35,3 +35,4 @@ DiskManager::~DiskManager() {
 		db_io.close();
 	}
 }
+} // namespace LuminaDB
