@@ -23,6 +23,9 @@ uint16_t Page::getFreeSpace() {
 }
 
 bool Page::insertRecord(const char *record_data, uint16_t record_size) {
+	if (record_size == 0)
+		return false;
+
 	if (getFreeSpace() < record_size + sizeof(Slot))
 		return false;
 

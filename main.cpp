@@ -1,61 +1,126 @@
 #include "luminadb/buffer/BufferPoolManager.hpp"
+#include "luminadb/model/Course.hpp"
+#include "luminadb/model/ModelFactory.hpp"
+#include "luminadb/model/SensorData.hpp"
+#include "luminadb/model/User.hpp"
 #include "luminadb/storage/DiskManager.hpp"
-#include <cstdint>
 #include <iostream>
-#include <string>
+#include <memory>
+#include <vector>
 
 using namespace LuminaDB;
 
 int main() {
-	// 1. Setup: Disk file and a Pool restricted to 3 pages
-	DiskManager dm("test_engine.db");
+	// 1. Setup: Disk file and a Pool restricted to 3 pages to force eviction
+	DiskManager dm("lumina_v4.db");
 	BufferPoolManager bpm(3, &dm);
 
-	uint32_t p0_id, p1_id, p2_id, p3_id;
+	uint32_t user_page_id, sensor_page_id, course_page_id;
 
-	std::cout << "--- Phase 1: Creating Pages (Filling the Pool) ---" << std::endl;
+	std::cout << "--- Phase 4: Serialization and Model Factory Test ---" << std::endl;
 
-	// Create 3 pages to fill the RAM capacity
-	Page *p0 = bpm.newPage(p0_id, 1);
-	bpm.newPage(p1_id, 1);
-	bpm.newPage(p2_id, 1);
+	// --- PART A: CREATE AND SAVE A USER (Variable String) ---
+	{
+		Page *page = bpm.newPage(user_page_id, static_cast<uint32_t>(ModelType::USER));
 
-	// Insert data into Page 0
-	std::string test_msg = "Page 0 persistent data";
-	p0->insertRecord(test_msg.c_str(), static_cast<uint16_t>(test_msg.size() + 1));
+		User user(101, "Satoshi Nakamoto", 45);
+		std::vector<char> buffer(user.getSerializedSize());
+		user.serializeToBuffer(buffer.data());
 
-	// Unpin pages; mark p0 as DIRTY so it persists to disk during eviction
-	bpm.unpinPage(p0_id, true);
-	bpm.unpinPage(p1_id, false);
-	bpm.unpinPage(p2_id, false);
-
-	std::cout << "[OK] Pool filled. IDs: " << p0_id << ", " << p1_id << ", " << p2_id << std::endl;
-
-	std::cout << "\n--- Phase 2: Forcing Eviction ---" << std::endl;
-
-	// Requesting Page 3 forces an eviction since the pool is full.
-	// Based on LRU, Page 0 should be evicted and flushed to disk.
-	bpm.newPage(p3_id, 1);
-	std::cout << "[OK] Page " << p3_id << " created. Eviction successful." << std::endl;
-
-	std::cout << "\n--- Phase 3: Verifying Persistence ---" << std::endl;
-
-	// Fetch Page 0 back from disk into RAM
-	Page *p0_recovered = bpm.fetchPage(p0_id);
-
-	uint16_t record_size;
-	const char *record_data = p0_recovered->getRecord(0, record_size);
-
-	if (record_data && std::string(record_data) == test_msg) {
-		std::cout << "SUCCESS: Data recovered from disk: " << record_data << std::endl;
-	} else {
-		std::cerr << "FAILURE: Data was lost or corrupted." << std::endl;
+		if (page->insertRecord(buffer.data(), static_cast<uint16_t>(buffer.size()))) {
+			std::cout << "[OK] User serialized into Page " << user_page_id << std::endl;
+		}
+		bpm.unpinPage(user_page_id, true); // Mark as dirty
 	}
 
-	// Final cleanup
-	bpm.unpinPage(p0_id, false);
-	bpm.unpinPage(p3_id, false);
+	// --- PART B: CREATE AND SAVE SENSOR DATA (Fixed Primitives) ---
+	{
+		Page *page = bpm.newPage(sensor_page_id, static_cast<uint32_t>(ModelType::SENSOR));
 
-	std::cout << "\n--- TEST COMPLETED SUCCESSFULLY ---" << std::endl;
+		SensorData sensor(777, 24.5, 1705416000);
+		std::vector<char> buffer(sensor.getSerializedSize());
+		sensor.serializeToBuffer(buffer.data());
+
+		page->insertRecord(buffer.data(), static_cast<uint16_t>(buffer.size()));
+		std::cout << "[OK] Sensor serialized into Page " << sensor_page_id << std::endl;
+		bpm.unpinPage(sensor_page_id, true);
+	}
+
+	// --- PART C: CREATE AND SAVE A COURSE (Complex Vector + String) ---
+	{
+		Page *page = bpm.newPage(course_page_id, static_cast<uint32_t>(ModelType::COURSE));
+
+		std::vector<uint32_t> initial_students = {101, 202, 303, 404, 505};
+		Course course(501, "Database Systems Architecture", initial_students);
+
+		std::vector<char> buffer(course.getSerializedSize());
+		course.serializeToBuffer(buffer.data());
+
+		page->insertRecord(buffer.data(), static_cast<uint16_t>(buffer.size()));
+		std::cout << "[OK] Course serialized into Page " << course_page_id << std::endl;
+		bpm.unpinPage(course_page_id, true);
+	}
+
+	// --- PART D: FORCE EVICTION (Corrected) ---
+	std::cout << "\n--- Forcing Eviction: Filling the Pool to push data to Disk ---" << std::endl;
+
+	uint32_t d1, d2, d3;
+	// 1. Create the pages and IMMEDIATELY get their IDs
+	bpm.newPage(d1, 0);
+	bpm.newPage(d2, 0);
+	bpm.newPage(d3, 0);
+
+	// 2. Unpin them so the Replacer (LRU) knows they can be evicted
+	bpm.unpinPage(d1, false);
+	bpm.unpinPage(d2, false);
+	bpm.unpinPage(d3, false);
+
+	// Now the pool is full of "unpinned" pages.
+	// When we call fetchPage next, the BPM will successfully evict one of these.
+
+	// --- PART E: RECOVERY USING FACTORY ---
+	std::cout << "\n--- Verifying Object Reconstruction via ModelFactory ---" << std::endl;
+
+	// 1. Recover User
+	{
+		Page *p_rec = bpm.fetchPage(user_page_id);
+		auto obj = ModelFactory::create(static_cast<ModelType>(p_rec->getHeader()->object_type));
+
+		uint16_t size;
+		const char *raw = p_rec->getRecord(0, size);
+		obj->deserializeFromBuffer(raw);
+
+		User *u = static_cast<User *>(obj.get());
+		std::cout << "SUCCESS: Recovered User: " << u->getName() << " (ID: " << u->getId() << ")" << std::endl;
+		bpm.unpinPage(user_page_id, false);
+	}
+
+	// 2. Recover Sensor
+	{
+		Page *p_sen = bpm.fetchPage(sensor_page_id);
+		auto obj_sen = ModelFactory::create(static_cast<ModelType>(p_sen->getHeader()->object_type));
+
+		uint16_t size;
+		obj_sen->deserializeFromBuffer(p_sen->getRecord(0, size));
+		SensorData *s = static_cast<SensorData *>(obj_sen.get());
+		std::cout << "SUCCESS: Recovered Sensor: Value=" << s->getValue() << ", TS=" << s->getTimestamp() << std::endl;
+		bpm.unpinPage(sensor_page_id, false);
+	}
+
+	// 3. Recover Course (The Complex One)
+	{
+		Page *p_crs = bpm.fetchPage(course_page_id);
+		auto obj_crs = ModelFactory::create(static_cast<ModelType>(p_crs->getHeader()->object_type));
+
+		uint16_t size;
+		obj_crs->deserializeFromBuffer(p_crs->getRecord(0, size));
+		Course *c = static_cast<Course *>(obj_crs.get());
+
+		std::cout << "SUCCESS: Recovered Course: " << c->getTitle() << std::endl;
+		std::cout << "         Students enrolled: " << c->getStudentsIds().size() << std::endl;
+		bpm.unpinPage(course_page_id, false);
+	}
+
+	std::cout << "\n--- PHASE 4 COMPLETED SUCCESSFULLY ---" << std::endl;
 	return 0;
 }

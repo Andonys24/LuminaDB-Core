@@ -15,9 +15,9 @@ std::vector<uint32_t> Course::getStudentsIds() const { return students_ids; }
 
 void Course::setCourseId(uint32_t id) { course_id = id; }
 
-void Course::setTitle(const std::string &title) { this->title = title; }
+void Course::setTitle(const std::string &title_param) { this->title = title_param; }
 
-void Course::setStudentsIds(const std::vector<uint32_t> &students) { students_ids = students; }
+void Course::setStudentsIds(const std::vector<uint32_t> &students) { this->students_ids = std::move(students); }
 
 void Course::addStudentId(uint32_t student_id) { students_ids.push_back(student_id); }
 
@@ -75,5 +75,7 @@ void Course::deserializeFromBuffer(const char *src) {
 	if (student_count > 0)
 		std::memcpy(students_ids.data(), src + offset, student_count * sizeof(uint32_t));
 }
+
+Course::~Course() {}
 
 } // namespace LuminaDB

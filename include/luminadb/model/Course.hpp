@@ -35,6 +35,8 @@ class Course : public Storable {
 	void serializeToBuffer(char *dest) const override;
 
 	void deserializeFromBuffer(const char *src) override;
+
+	~Course();
 };
 } // namespace LuminaDB
 

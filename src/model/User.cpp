@@ -12,11 +12,11 @@ std::string User::getName() const { return name; }
 
 uint16_t User::getAge() const { return age; }
 
-void User::setId(uint32_t id) { this->id = id; }
+void User::setId(uint32_t id_param) { this->id = id_param; }
 
-void User::setName(const std::string &name) { this->name = name; }
+void User::setName(const std::string &name_param) { this->name = std::move(name_param); }
 
-void User::setAge(uint16_t age) { this->age = age; }
+void User::setAge(uint16_t age_param) { this->age = age_param; }
 
 ModelType User::getType() const { return ModelType::USER; }
 
@@ -58,5 +58,7 @@ void User::deserializeFromBuffer(const char *src) {
 	// Rebuild the string from the buffer
 	name.assign(src + offset, name_len);
 }
+
+User::~User() {}
 
 } // namespace LuminaDB

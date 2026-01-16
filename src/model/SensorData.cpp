@@ -48,4 +48,6 @@ void SensorData::deserializeFromBuffer(const char *src) {
 	std::memcpy(&timestamp, src + offset, sizeof(timestamp));
 }
 
+SensorData::~SensorData() {}
+
 } // namespace LuminaDB
