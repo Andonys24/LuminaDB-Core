@@ -72,6 +72,27 @@ void BPlusTree::insert(uint32_t key, const RecordID &value) {
 }
 
 // Debug
-Page *BPlusTree::findLeafPage(uint32_t) { return bpm->fetchPage(root_page_id); }
+Page *BPlusTree::findLeafPage(uint32_t key) {
+	uint32_t page_id = root_page_id;
+	std::cout << "\n[findLeafPage] Starting from root=" << page_id << " searching for key=" << key << std::endl;
+
+	while (true) {
+		Page *page = bpm->fetchPage(page_id);
+		BPlusTreePage base(const_cast<char *>(page->getRawData()));
+
+		std::cout << "[findLeafPage] At page " << page_id << ", type=" << (base.isLeaf() ? "LEAF" : "INTERNAL")
+				  << std::endl;
+
+		if (base.isLeaf()) {
+			return page;
+		}
+
+		BPlusTreeInternalPage internal(const_cast<char *>(page->getRawData()));
+		uint32_t next_page = internal.lookup(key);
+
+		bpm->unpinPage(page_id, false);
+		page_id = next_page;
+	}
+}
 
 } // namespace LuminaDB

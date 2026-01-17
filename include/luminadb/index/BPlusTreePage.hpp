@@ -60,6 +60,21 @@ class BPlusTreeLeafPage : public BPlusTreePage {
 	bool insert(uint32_t key, const RecordID &value);
 };
 
+class BPlusTreeInternalPage : public BPlusTreePage {
+  public:
+	using BPlusTreePage::BPlusTreePage;
+
+	// Methods to manage keys and PageIDs (children)
+	uint32_t keyAt(int index) const;
+	void setKeyAt(int index, uint32_t key);
+
+	uint32_t valueAt(int index) const; // "value" is a PageID
+	void setValueAt(int index, uint32_t value);
+
+	// Search which thread to go down based on the key
+	uint32_t lookup(uint32_t key) const;
+};
+
 } // namespace LuminaDB
 
 #endif

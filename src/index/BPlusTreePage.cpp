@@ -1,5 +1,6 @@
 #include "luminadb/index/BPlusTreePage.hpp"
 #include <cstring>
+#include <iostream>
 
 namespace LuminaDB {
 
@@ -29,6 +30,7 @@ void BPlusTreePage::init(IndexPageType type, uint32_t parent, uint32_t max_keys)
 }
 
 // --- BPlusTreeLeafPage ---
+
 // --- ACCESS METHODS ---
 
 // Returns the key at index 'index'
@@ -120,6 +122,55 @@ bool BPlusTreeLeafPage::insert(uint32_t key, const RecordID &value) {
 	setSize(size + 1);
 
 	return true;
+}
+
+// --- BPlusTreeInternalPage ---
+
+uint32_t BPlusTreeInternalPage::keyAt(int index) const {
+	const char *offset = data + sizeof(BPlusTreeHeader) + (index * sizeof(uint32_t));
+	return *reinterpret_cast<const uint32_t *>(offset);
+}
+
+void BPlusTreeInternalPage::setKeyAt(int index, uint32_t key) {
+	char *offset = data + sizeof(BPlusTreeHeader) + (index * sizeof(uint32_t));
+	*reinterpret_cast<uint32_t *>(offset) = key;
+}
+
+uint32_t BPlusTreeInternalPage::valueAt(int index) const {
+	uint32_t header_size = sizeof(BPlusTreeHeader);
+	// Child array starts after maximum brace space
+	uint32_t keys_area_size = getHeader()->max_size * sizeof(uint32_t);
+	const char *offset = data + header_size + keys_area_size + (index * sizeof(uint32_t));
+	return *reinterpret_cast<const uint32_t *>(offset);
+}
+
+void BPlusTreeInternalPage::setValueAt(int index, uint32_t value) {
+	uint32_t header_size = sizeof(BPlusTreeHeader);
+	uint32_t keys_area_size = getHeader()->max_size * sizeof(uint32_t);
+	char *offset = data + header_size + keys_area_size + (index * sizeof(uint32_t));
+	*reinterpret_cast<uint32_t *>(offset) = value;
+}
+
+uint32_t BPlusTreeInternalPage::lookup(uint32_t key) const {
+	uint32_t size = getSize();
+
+	std::cout << "[Internal] Looking for key=" << key << " in node with size=" << size << std::endl;
+
+	for (uint32_t i = 0; i < size; ++i) {
+		uint32_t current_key = keyAt(i);
+		std::cout << "  Checking keyAt(" << i << ")=" << current_key;
+
+		if (key < current_key) {
+			uint32_t child = valueAt(i);
+			std::cout << " -> Going to child valueAt(" << i << ")=" << child << std::endl;
+			return child;
+		}
+		std::cout << " (skip)" << std::endl;
+	}
+
+	uint32_t rightmost = valueAt(size);
+	std::cout << "  -> Going to rightmost child valueAt(" << size << ")=" << rightmost << std::endl;
+	return rightmost;
 }
 
 } // namespace LuminaDB
