@@ -1,8 +1,14 @@
 #include "luminadb/buffer/BufferPoolManager.hpp"
 
+#include <iostream>
+
 namespace LuminaDB {
 BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager)
-	: pool_size(pool_size), disk_manager(disk_manager), next_page_id(0) {
+	: pool_size(pool_size), disk_manager(disk_manager) {
+
+	// Recover the previous state
+	next_page_id = disk_manager->getExistingPageCount();
+
 	// Reset the memory block for the pages
 	pages = new Page[pool_size];
 	replacer = new LRUReplacer(pool_size);
@@ -11,8 +17,16 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
 	pin_count = new uint32_t[pool_size];
 
 	// Initially, all frames are empty.
-	for (size_t i = 0; i < pool_size; ++i)
+	for (size_t i = 0; i < pool_size; ++i) {
+		is_dirty[i] = false;
+		pin_count[i] = 0;
 		free_list.push_back(static_cast<uint32_t>(i));
+	}
+
+	// Debug
+	if (next_page_id > 0) {
+		std::cout << "[BPM] Resuming from page ID: " << next_page_id << std::endl;
+	}
 }
 
 Page *BufferPoolManager::fetchPage(uint32_t page_id) {
@@ -84,7 +98,7 @@ bool BufferPoolManager::unpinPage(uint32_t page_id, bool is_dirty_flag) {
 	return true;
 }
 
-Page *BufferPoolManager::newPage(uint32_t &page_id, uint32_t object_type) {
+Page *BufferPoolManager::newPage(uint32_t &page_id, ModelType object_type) {
 	std::lock_guard<std::mutex> lock(latch);
 	uint32_t frame_id;
 
@@ -107,6 +121,18 @@ Page *BufferPoolManager::newPage(uint32_t &page_id, uint32_t object_type) {
 
 	// B. Generate a new ID and "format" the page
 	page_id = next_page_id++;
+
+	if (object_type == ModelType::B_PLUS_TREE) {
+		char *raw_data = const_cast<char *>(pages[frame_id].getRawData());
+		std::memset(raw_data, 0, PAGE_SIZE);
+
+		auto *header = reinterpret_cast<PageHeader *>(const_cast<char *>(pages[frame_id].getRawData()));
+		header->page_id = page_id;
+		header->object_type = static_cast<uint32_t>(object_type);
+	} else {
+		pages[frame_id].init(page_id, object_type);
+	}
+
 	pages[frame_id].init(page_id, object_type);
 
 	// C. Update Manager metadata
@@ -162,6 +188,14 @@ bool BufferPoolManager::deletePage(uint32_t page_id) {
 }
 
 BufferPoolManager::~BufferPoolManager() {
+
+	for (size_t i = 0; i < pool_size; ++i) {
+		if (is_dirty[i]) {
+			uint32_t p_id = pages[i].getHeader()->page_id;
+			disk_manager->writePage(p_id, pages[i].getRawData());
+		}
+	}
+
 	delete[] pages;
 	delete[] is_dirty;
 	delete[] pin_count;

@@ -30,6 +30,19 @@ void DiskManager::readPage(uint32_t page_id, char *buffer) {
 	db_io.read(buffer, PAGE_SIZE);
 }
 
+uint32_t DiskManager::getExistingPageCount() {
+	// Move to the end of the file
+	db_io.seekg(0, std::ios::end);
+
+	// Obtenemos la posición actual ( total en bytes)
+	size_t file_size = static_cast<size_t>(db_io.tellg());
+
+	// Return the pointer to the beginning so as not to ruin future readings
+	db_io.seekg(0, std::ios::beg);
+
+	return static_cast<uint32_t>(file_size / PAGE_SIZE);
+}
+
 DiskManager::~DiskManager() {
 	if (db_io.is_open()) {
 		db_io.close();

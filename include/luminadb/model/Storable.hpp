@@ -10,6 +10,7 @@ enum class ModelType : uint32_t {
 	SENSOR = 1,
 	USER = 2,
 	COURSE = 3,
+	B_PLUS_TREE = 4,
 };
 
 class Storable {

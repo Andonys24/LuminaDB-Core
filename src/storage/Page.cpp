@@ -6,17 +6,20 @@ namespace LuminaDB {
 
 Page::Page() {}
 
-void Page::init(uint32_t id, uint32_t type) {
+void Page::init(uint32_t id, ModelType type) {
 	std::memset(data, 0, PAGE_SIZE);
 	auto *header = getHeader();
 	header->page_id = id;
-	header->object_type = type;
+	header->object_type = static_cast<uint32_t>(type);
 	header->slot_count = 0;
 	// The data space starts at the bottom of the page
 	header->free_ptr = PAGE_SIZE;
 }
+const PageHeader *Page::getHeader() const { return reinterpret_cast<const PageHeader *>(data); }
 
 PageHeader *Page::getHeader() { return reinterpret_cast<PageHeader *>(data); }
+
+uint32_t Page::getPageId() const { return getHeader()->page_id; }
 
 uint16_t Page::getFreeSpace() {
 	auto *header = getHeader();

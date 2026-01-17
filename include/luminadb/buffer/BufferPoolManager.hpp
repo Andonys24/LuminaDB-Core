@@ -2,6 +2,7 @@
 #define LUMINADB_BUFFER_POOL_MANAGER_HPP
 
 #include "LRUReplacer.hpp"
+#include "luminadb/model/Storable.hpp"
 #include "luminadb/storage/DiskManager.hpp"
 #include "luminadb/storage/Page.hpp"
 #include <list>
@@ -34,7 +35,7 @@ class BufferPoolManager {
 	bool unpinPage(uint32_t page_id, bool is_dirty_flag);
 
 	// Creates a new page on the disk and loads it into RAM.
-	Page *newPage(uint32_t &page_id, uint32_t object_type);
+	Page *newPage(uint32_t &page_id, ModelType object_type);
 
 	// Deletes a page from the disk and RAM.
 	bool deletePage(uint32_t page_id);

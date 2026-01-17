@@ -19,7 +19,7 @@ uint32_t BPlusTreePage::getSize() const { return reinterpret_cast<const BPlusTre
 
 void BPlusTreePage::setSize(uint32_t size) { getHeader()->current_size = size; }
 
-void BPlusTreePage::init(IndexPageType type, uint32_t parent = 0, uint32_t max_keys = 0) {
+void BPlusTreePage::init(IndexPageType type, uint32_t parent, uint32_t max_keys) {
 	BPlusTreeHeader *header = getHeader();
 	header->page_type = type;
 	header->parent_page_id = parent;

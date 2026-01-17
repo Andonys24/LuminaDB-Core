@@ -1,7 +1,7 @@
 #ifndef LUMINADB_PAGE_HPP
 #define LUMINADB_PAGE_HPP
 
-#include <cstdint>
+#include "luminadb/model/Storable.hpp"
 
 namespace LuminaDB {
 // Industry standard page size (4KB)
@@ -27,9 +27,13 @@ class Page {
   public:
 	//   Constructor
 	Page();
-	void init(uint32_t id, uint32_t type);
+	void init(uint32_t id, ModelType type);
 
+	// Getters
+	const PageHeader *getHeader() const;
 	PageHeader *getHeader();
+
+	uint32_t getPageId() const;
 
 	// Returns how much space is left between the slots directory and the data
 	uint16_t getFreeSpace();

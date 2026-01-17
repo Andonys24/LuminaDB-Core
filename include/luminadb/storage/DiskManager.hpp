@@ -14,6 +14,7 @@ class DiskManager {
 	DiskManager(const std::string &db_file);
 	void writePage(uint32_t page_id, const char *page_data);
 	void readPage(uint32_t page_id, char *buffer);
+	uint32_t getExistingPageCount();
 	~DiskManager();
 };
 } // namespace LuminaDB
