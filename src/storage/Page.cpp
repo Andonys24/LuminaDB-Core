@@ -1,4 +1,6 @@
 #include "luminadb/storage/Page.hpp"
+#include "luminadb/common/types.hpp"
+#include <cstring>
 
 namespace LuminaDB {
 

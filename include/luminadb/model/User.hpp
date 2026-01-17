@@ -2,7 +2,6 @@
 #define LUMINADB_USER_HPP
 
 #include "Storable.hpp"
-#include <cstdint>
 #include <string>
 
 namespace LuminaDB {

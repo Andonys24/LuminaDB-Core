@@ -1,4 +1,7 @@
 #include "luminadb/model/ModelFactory.hpp"
+#include "luminadb/model/Course.hpp"
+#include "luminadb/model/SensorData.hpp"
+#include "luminadb/model/User.hpp"
 
 namespace LuminaDB {
 

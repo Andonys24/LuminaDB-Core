@@ -2,20 +2,10 @@
 #define LUMINADB_PAGE_HPP
 
 #include <cstdint>
-#include <cstring>
 
 namespace LuminaDB {
 // Industry standard page size (4KB)
 inline constexpr size_t PAGE_SIZE = 4096;
-
-/**
- * Structure of a Slot within the page.
- * Indicates where a record begins and its length.
- */
-struct Slot {
-	uint16_t offset; // Position relative to the beginning of the page
-	uint16_t size;	 // Size of serialized object
-};
 
 /**
  * Page header (Metadata)

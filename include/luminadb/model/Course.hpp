@@ -2,7 +2,6 @@
 #define LUMINADB_COURSE_HPP
 
 #include "Storable.hpp"
-#include <cstdint>
 #include <string>
 #include <vector>
 
