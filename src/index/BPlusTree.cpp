@@ -22,6 +22,9 @@ BPlusTree::BPlusTree(uint32_t root_id, BufferPoolManager *bpm_param) : root_page
 			// Initialize: Leaf Type, no parent (0), and capacity (of: 250 keys)
 			leaf.init(IndexPageType::LEAF_NODE, 0, 250);
 
+			// Store the page_id in the header so we can retrieve it later
+			leaf.getHeader()->page_id = root_page_id;
+
 			// Release marking as dirty so that the Disk Manager saves it
 			bpm->unpinPage(root_page_id, true);
 
@@ -64,11 +67,107 @@ void BPlusTree::insert(uint32_t key, const RecordID &value) {
 	bool success = leaf.insert(key, value);
 
 	if (!success) {
-		// For now, if it fails it is because it is full or duplicated.
+		// Leaf is full, need to split
+		// Get the page_id from the B+Tree header (not from Page object)
+		uint32_t leaf_id = leaf.getHeader()->page_id;
+
+		// Perform the split
+		SplitResult split_result = leaf.split(key, value, bpm);
+
+		// Mark leaf as dirty before unpinning (split modified it)
+		bpm->unpinPage(leaf_id, true);
+
+		// Propagate the split to the parent
+		insertIntoParent(leaf_id, split_result.middle_key, split_result.new_page_id);
+	} else {
+		// Insert was successful, just mark as dirty and release
+		// Get page_id from B+Tree header
+		uint32_t leaf_id = leaf.getHeader()->page_id;
+		bpm->unpinPage(leaf_id, true);
+	}
+}
+
+// --- PROPAGATION METHODS ---
+
+void BPlusTree::insertIntoParent(uint32_t left_child_id, uint32_t key, uint32_t right_child_id) {
+	std::cout << "\n[insertIntoParent] Inserting key=" << key << " with right_child=" << right_child_id
+			  << " from left_child=" << left_child_id << std::endl;
+
+	// STEP 1: Fetch the left child to get its parent ID
+	Page *left_child_page = bpm->fetchPage(left_child_id);
+	BPlusTreePage left_child_base(const_cast<char *>(left_child_page->getRawData()));
+	uint32_t parent_id = left_child_base.getHeader()->parent_page_id;
+
+	bpm->unpinPage(left_child_id, false);
+
+	// STEP 2: Special case - if left_child is the root, create a new root
+	if (left_child_id == root_page_id) {
+		std::cout << "[insertIntoParent] Left child is root, creating new root" << std::endl;
+		createNewRoot(left_child_id, key, right_child_id);
+		return;
 	}
 
-	// Release and mark as dirty if the insert was successful
-	bpm->unpinPage(page->getPageId(), true);
+	// STEP 3: Fetch the parent page
+	Page *parent_page = bpm->fetchPage(parent_id);
+	BPlusTreeInternalPage parent(const_cast<char *>(parent_page->getRawData()));
+
+	// STEP 4: Try to insert the key into the parent
+	bool insert_success = parent.insertAfter(key, right_child_id);
+
+	if (insert_success) {
+		// Parent had space, just mark it as dirty and we're done
+		std::cout << "[insertIntoParent] Key inserted into parent successfully" << std::endl;
+		bpm->unpinPage(parent_id, true);
+	} else {
+		// Parent is full, need to split it recursively
+		std::cout << "[insertIntoParent] Parent is full, need to split it recursively" << std::endl;
+
+		// For now, we'll handle this in a future step (Phase 5.3.2)
+		// TODO: Implement internal node split and recursive propagation
+		std::cout << "[TODO] Internal node split not yet implemented" << std::endl;
+		bpm->unpinPage(parent_id, false);
+	}
+}
+
+void BPlusTree::createNewRoot(uint32_t left_child_id, uint32_t key, uint32_t right_child_id) {
+	std::cout << "\n[createNewRoot] Creating new root with key=" << key << std::endl;
+
+	// STEP 1: Create a new page for the new root (internal node)
+	uint32_t new_root_id;
+	Page *new_root_page = bpm->newPage(new_root_id, ModelType::B_PLUS_TREE);
+
+	BPlusTreeInternalPage new_root(const_cast<char *>(new_root_page->getRawData()));
+	new_root.init(IndexPageType::INTERNAL_NODE, 0, 250); // parent_id=0 (it's the root)
+
+	// Store the page_id in the header
+	new_root.getHeader()->page_id = new_root_id;
+
+	// STEP 2: Set up the internal structure
+	// The new root has 2 children and 1 key:
+	// [left_child_id] key [right_child_id]
+
+	new_root.setValueAt(0, left_child_id);	// Left child
+	new_root.setKeyAt(0, key);				// Separator key
+	new_root.setValueAt(1, right_child_id); // Right child
+	new_root.setSize(1);					// 1 key = 2 children
+
+	bpm->unpinPage(new_root_id, true);
+
+	// STEP 3: Update the parent pointers of both children
+	Page *left_child_page = bpm->fetchPage(left_child_id);
+	BPlusTreePage left_child_base(const_cast<char *>(left_child_page->getRawData()));
+	left_child_base.getHeader()->parent_page_id = new_root_id;
+	bpm->unpinPage(left_child_id, true);
+
+	Page *right_child_page = bpm->fetchPage(right_child_id);
+	BPlusTreePage right_child_base(const_cast<char *>(right_child_page->getRawData()));
+	right_child_base.getHeader()->parent_page_id = new_root_id;
+	bpm->unpinPage(right_child_id, true);
+
+	// STEP 4: Update the tree's root_page_id
+	root_page_id = new_root_id;
+
+	std::cout << "[createNewRoot] New root created at page " << new_root_id << std::endl;
 }
 
 // Debug

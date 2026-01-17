@@ -17,6 +17,12 @@ class BPlusTree {
 	// Find the leaf page that should contain the key 'key'
 	Page *findLeafPage(uint32_t key);
 
+	// Propagate a split from child to parent (recursive insertion into ancestors)
+	void insertIntoParent(uint32_t left_child_id, uint32_t key, uint32_t right_child_id);
+
+	// Create a new root when the current root splits
+	void createNewRoot(uint32_t left_child_id, uint32_t key, uint32_t right_child_id);
+
 	// Create a new blank page for the tree
 	// Page *createNewNode(IndexPageType type);
 

@@ -4,13 +4,27 @@
 #include "luminadb/common/types.hpp"
 
 namespace LuminaDB {
+
+// Forward declaration
+class BufferPoolManager;
+
 enum class IndexPageType { INTERNAL_NODE = 0, LEAF_NODE = 1 };
+
+/**
+ * Structure returned when a split occurs.
+ * Contains the key that must go up to the parent and the ID of the new sibling.
+ */
+struct SplitResult {
+	uint32_t middle_key;  // Key to promote to parent
+	uint32_t new_page_id; // ID of the new sibling page created
+};
 
 /**
  * Specific header for the pages that make up the B+ Tree.
  * It is located at the beginning of the 4096 bytes of the page.
  */
 struct BPlusTreeHeader {
+	uint32_t page_id; // ID of this page
 	IndexPageType page_type;
 	uint32_t parent_page_id; // Parent page ID (0 if root)
 	uint32_t current_size;	 // How many keys do you have today
@@ -58,6 +72,18 @@ class BPlusTreeLeafPage : public BPlusTreePage {
 
 	// --- DATA WRITE ---
 	bool insert(uint32_t key, const RecordID &value);
+
+	// --- SPLIT OPERATION ---
+	/**
+	 * Splits a full leaf page when inserting a new key/value.
+	 * Creates a new sibling page and distributes the entries.
+	 * Returns the key to promote to parent and the new page ID.
+	 */
+	SplitResult split(uint32_t key, const RecordID &value, BufferPoolManager *bpm);
+
+	// --- UTILITY ---
+	uint32_t getNextPageId() const;
+	void setNextPageId(uint32_t next_id);
 };
 
 class BPlusTreeInternalPage : public BPlusTreePage {
@@ -73,6 +99,9 @@ class BPlusTreeInternalPage : public BPlusTreePage {
 
 	// Search which thread to go down based on the key
 	uint32_t lookup(uint32_t key) const;
+
+	// Insert a key and its right child into this internal node (assumes space available)
+	bool insertAfter(uint32_t key, uint32_t right_child);
 };
 
 } // namespace LuminaDB
