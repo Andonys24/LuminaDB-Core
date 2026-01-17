@@ -5,31 +5,47 @@ namespace LuminaDB {
 
 BPlusTree::BPlusTree(uint32_t root_id, BufferPoolManager *bpm_param) : root_page_id(root_id), bpm(bpm_param) {
 
-	// If there is no root, the first page is created (which will be a Sheet)
+	// If root_id is 0, try to load existing root from disk page 0, or create new one
 	if (root_page_id == 0) {
-		uint32_t new_id;
+		// First try to fetch page 0 from disk (if it exists and has data)
+		Page *existing_page = bpm->fetchPage(0);
 
-		// Request a new page from the BufferPool with the type Index
-		Page *page = bpm->newPage(new_id, ModelType::B_PLUS_TREE);
+		bool valid_root = false;
+		if (existing_page != nullptr) {
+			BPlusTreePage base(const_cast<char *>(existing_page->getRawData()));
+			const BPlusTreeHeader *hdr = base.getHeader();
 
-		if (page != nullptr) {
-			root_page_id = new_id;
+			// Validate header to ensure it's a real B+Tree page
+			if (hdr->page_id == 0 &&
+				(hdr->page_type == IndexPageType::LEAF_NODE || hdr->page_type == IndexPageType::INTERNAL_NODE) &&
+				hdr->max_size > 0 && hdr->max_size <= 2000 && hdr->current_size <= hdr->max_size) {
+				valid_root = true;
+			}
+		}
 
-			// Use const_cast to initialize it as Sheet
-			char *raw_data = const_cast<char *>(page->getRawData());
-			BPlusTreeLeafPage leaf(raw_data);
+		if (valid_root) {
+			root_page_id = 0;
+			std::cout << "B+ Tree Root loaded from existing Page: 0" << std::endl;
+			bpm->unpinPage(0, false);
+		} else {
+			if (existing_page != nullptr) {
+				bpm->unpinPage(0, false);
+			}
+			// Page 0 invalid or missing - create new root
+			uint32_t new_id;
+			Page *page = bpm->newPage(new_id, ModelType::B_PLUS_TREE);
 
-			// Initialize: Leaf Type, no parent (0), and capacity (of: 250 keys)
-			leaf.init(IndexPageType::LEAF_NODE, 0, 250);
+			if (page != nullptr) {
+				root_page_id = new_id;
 
-			// Store the page_id in the header so we can retrieve it later
-			leaf.getHeader()->page_id = root_page_id;
+				char *raw_data = const_cast<char *>(page->getRawData());
+				BPlusTreeLeafPage leaf(raw_data);
+				leaf.init(IndexPageType::LEAF_NODE, 0, 250);
+				leaf.getHeader()->page_id = root_page_id;
 
-			// Release marking as dirty so that the Disk Manager saves it
-			bpm->unpinPage(root_page_id, true);
-
-			// Debug
-			std::cout << "B+ Tree Root created at Page: " << root_page_id << std::endl;
+				bpm->unpinPage(root_page_id, true);
+				std::cout << "B+ Tree Root created at Page: " << root_page_id << std::endl;
+			}
 		}
 	}
 }

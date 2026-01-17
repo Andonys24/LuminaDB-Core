@@ -37,7 +37,8 @@ class BufferPoolManager {
 	// Creates a new page on the disk and loads it into RAM.
 	Page *newPage(uint32_t &page_id, ModelType object_type);
 
-	// Deletes a page from the disk and RAM.
+	// NOT USED - deletePage() was never called
+	// Page deletion wasn't required for Phase 1-6 implementation.
 	bool deletePage(uint32_t page_id);
 
 	// Forces writing a page to the disk.

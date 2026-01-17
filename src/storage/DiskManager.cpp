@@ -1,5 +1,6 @@
 #include "luminadb/storage/DiskManager.hpp"
 #include "luminadb/storage/Page.hpp"
+#include <cstring>
 
 namespace LuminaDB {
 
@@ -25,9 +26,20 @@ void DiskManager::writePage(uint32_t page_id, const char *page_data) {
 }
 
 void DiskManager::readPage(uint32_t page_id, char *buffer) {
+	// Always zero-initialize the destination buffer to avoid garbage when the
+	// file is shorter than the requested page. This prevents uninitialized
+	// headers from being interpreted as valid B+Tree pages.
+	std::memset(buffer, 0, PAGE_SIZE);
+
 	size_t offset = page_id * PAGE_SIZE;
 	db_io.seekg(offset);
 	db_io.read(buffer, PAGE_SIZE);
+
+	// If the read failed or was partial, clear the error state so future I/O
+	// operations keep working. The buffer stays zeroed for missing bytes.
+	if (!db_io.good()) {
+		db_io.clear();
+	}
 }
 
 uint32_t DiskManager::getExistingPageCount() {

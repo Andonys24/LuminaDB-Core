@@ -33,6 +33,8 @@ class LRUReplacer {
 	 */
 	void unpin(uint32_t frame_id);
 
+	// NOT USED - Size() is a debug method never called
+	// Implemented for monitoring but not used in production code.
 	size_t Size();
 };
 
